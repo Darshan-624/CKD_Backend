@@ -36,3 +36,15 @@ class PredictionResponse(BaseModel):
     # appetite: str         # "good" or "poor"
     # pedal_edema: str      # "yes" or "no"
     # anemia: str           # "yes" or "no"
+
+class PredictionHistoryItem(BaseModel):
+    id: str
+    created_at: str
+    ckd_prediction: str
+    risk_probability: float
+    ckd_stage: str
+    egfr_value: float
+    top_factors: List[str]
+
+class PredictionHistoryResponse(BaseModel):
+    predictions: List[PredictionHistoryItem]

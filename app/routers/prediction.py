@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from app.db.supabase import supabase
-from app.models.prediction import PredictionRequest, PredictionResponse
+from app.models.prediction import PredictionRequest, PredictionResponse, PredictionHistoryResponse, PredictionHistoryItem
 from app.core.auth_dependency import get_current_user
 from app.services.prediction_service import make_prediction
 
@@ -110,4 +110,46 @@ async def predict_ckd(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Prediction error: {str(e)}"
+        )
+
+@router.get("/history", response_model=PredictionHistoryResponse, summary="Get Prediction History")
+async def get_prediction_history(
+    current_user = Depends(get_current_user)
+):
+    """
+    Retrieve all prediction history for the current authenticated user.
+    Requires authentication.
+    """
+    try:
+        user_id = current_user.id
+        
+        # Query predictions for the current user, ordered by creation date (newest first)
+        predictions_response = supabase.table("predictions").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+        
+        if not predictions_response.data:
+            # Return empty list if no predictions found
+            return PredictionHistoryResponse(predictions=[])
+        
+        # Map database records to response model
+        predictions = [
+            PredictionHistoryItem(
+                id=pred["id"],
+                created_at=pred["created_at"],
+                ckd_prediction=pred["ckd_prediction"],
+                risk_probability=pred["risk_probability"],
+                ckd_stage=pred["ckd_stage"] if pred["ckd_stage"] else "N/A",
+                egfr_value=pred["egfr_value"] if pred["egfr_value"] else 0.0,
+                top_factors=pred["top_factors"] if pred["top_factors"] else []
+            )
+            for pred in predictions_response.data
+        ]
+        
+        return PredictionHistoryResponse(predictions=predictions)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve prediction history: {str(e)}"
         )
